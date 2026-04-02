@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>News Tip Triage — Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface-hover: #22252f;
+      --border: #2a2d3a;
+      --text: #e4e4e7;
+      --text-dim: #8b8d98;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.15);
+      --critical: #ef4444;
+      --critical-bg: rgba(239, 68, 68, 0.12);
+      --high: #f59e0b;
+      --high-bg: rgba(245, 158, 11, 0.12);
+      --medium: #3b82f6;
+      --medium-bg: rgba(59, 130, 246, 0.12);
+      --low: #6b7280;
+      --low-bg: rgba(107, 114, 128, 0.12);
+      --success: #22c55e;
+      --radius: 8px;
+      --radius-lg: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* ── Layout ──────────────────────────────────── */
+
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+    .header h1 span { color: var(--accent); }
+    .header-status {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--text-dim);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .main { display: flex; flex: 1; }
+
+    /* ── Sidebar ─────────────────────────────────── */
+
+    .sidebar {
+      width: 260px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 24px;
+    }
+
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-card .value { font-size: 24px; font-weight: 700; }
+    .stat-card .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .filter-group label {
+      display: block; font-size: 11px; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .filter-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+    .pill {
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 12px; cursor: pointer;
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text-dim); transition: all 0.15s;
+    }
+    .pill:hover { border-color: var(--accent); color: var(--text); }
+    .pill.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+
+    .search-input {
+      width: 100%; padding: 8px 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-size: 13px; outline: none;
+    }
+    .search-input:focus { border-color: var(--accent); }
+
+    /* ── Content ──────────────────────────────────── */
+
+    .content { flex: 1; padding: 20px; overflow-y: auto; }
+
+    .tip-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .tip-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex; gap: 16px; align-items: flex-start;
+    }
+    .tip-card:hover { background: var(--surface-hover); border-color: var(--accent); transform: translateY(-1px); }
+    .tip-card.urgent { border-left: 3px solid var(--critical); }
+    .tip-card.breaking { border-left: 3px solid var(--high); }
+
+    .tip-score {
+      flex-shrink: 0; width: 52px; height: 52px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700;
+    }
+    .tip-score.critical { background: var(--critical-bg); color: var(--critical); }
+    .tip-score.high     { background: var(--high-bg); color: var(--high); }
+    .tip-score.medium   { background: var(--medium-bg); color: var(--medium); }
+    .tip-score.low      { background: var(--low-bg); color: var(--low); }
+
+    .tip-body { flex: 1; min-width: 0; }
+    .tip-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .tip-subject { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tip-badges { display: flex; gap: 4px; flex-shrink: 0; }
+    .badge {
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .badge.urgent  { background: var(--critical-bg); color: var(--critical); }
+    .badge.breaking { background: var(--high-bg); color: var(--high); }
+    .badge.starred { background: rgba(234, 179, 8, 0.12); color: #eab308; }
+
+    .tip-summary { font-size: 13px; color: var(--text-dim); margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .tip-meta { display: flex; gap: 16px; font-size: 11px; color: var(--text-dim); }
+    .tip-meta span { display: flex; align-items: center; gap: 4px; }
+
+    .tip-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: 1px solid transparent;
+      color: var(--text-dim); cursor: pointer; font-size: 14px;
+      transition: all 0.15s;
+    }
+    .icon-btn:hover { background: var(--bg); border-color: var(--border); color: var(--text); }
+
+    /* ── Detail panel ────────────────────────────── */
+
+    .detail-panel {
+      width: 420px; flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      padding: 24px;
+      overflow-y: auto;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .detail-panel h2 { font-size: 18px; font-weight: 700; }
+    .detail-section h3 {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text-dim); margin-bottom: 8px;
+    }
+    .detail-section p { font-size: 14px; }
+    .claim-list { list-style: none; }
+    .claim-list li {
+      padding: 6px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px; color: var(--text-dim);
+    }
+    .claim-list li::before { content: '→ '; color: var(--accent); }
+    .question-list { list-style: decimal inside; }
+    .question-list li { padding: 4px 0; font-size: 13px; color: var(--text-dim); }
+
+    .score-bar-group { display: flex; flex-direction: column; gap: 6px; }
+    .score-bar-row {
+      display: flex; align-items: center; gap: 8px; font-size: 12px;
+    }
+    .score-bar-label { width: 90px; color: var(--text-dim); text-transform: capitalize; }
+    .score-bar-track { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+    .score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+    .score-bar-value { width: 28px; text-align: right; font-weight: 600; font-size: 12px; }
+
+    .notes-textarea {
+      width: 100%; min-height: 80px; padding: 10px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-size: 13px; font-family: inherit; resize: vertical;
+    }
+    .assign-input {
+      width: 100%; padding: 8px 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text); font-size: 13px;
+    }
+    .btn-row { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 16px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 500; cursor: pointer; border: none;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+    .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
+
+    /* ── Empty / loading states ──────────────────── */
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 60px 20px; color: var(--text-dim); text-align: center;
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+    .empty-state p { font-size: 14px; }
+
+    .loading-spinner {
+      width: 20px; height: 20px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Submit tip modal ────────────────────────── */
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+    }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px; width: 480px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .modal h2 { font-size: 18px; font-weight: 700; }
+    .modal input, .modal textarea {
+      width: 100%; padding: 10px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text); font-size: 14px; font-family: inherit;
+    }
+    .modal textarea { min-height: 120px; resize: vertical; }
+
+    /* ── Responsive ──────────────────────────────── */
+
+    @media (max-width: 1100px) {
+      .sidebar { display: none; }
+    }
+    @media (max-width: 800px) {
+      .detail-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    /* ── Helpers ─────────────────────────────────── */
+
+    const API = '';  // same origin
+    const fetcher = (url) => fetch(API + url).then(r => r.json());
+
+    function timeAgo(iso) {
+      if (!iso) return '';
+      const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+      return `${Math.floor(diff/86400)}d ago`;
+    }
+
+    function scoreColor(score) {
+      if (score >= 85) return 'critical';
+      if (score >= 70) return 'high';
+      if (score >= 50) return 'medium';
+      return 'low';
+    }
+
+    function barColor(val) {
+      if (val >= 80) return 'var(--critical)';
+      if (val >= 60) return 'var(--high)';
+      if (val >= 40) return 'var(--medium)';
+      return 'var(--low)';
+    }
+
+    /* ── Score bar component ────────────────────── */
+
+    function ScoreBar({ label, value }) {
+      return (
+        <div className="score-bar-row">
+          <span className="score-bar-label">{label}</span>
+          <div className="score-bar-track">
+            <div className="score-bar-fill" style={{ width: `${value}%`, background: barColor(value) }} />
+          </div>
+          <span className="score-bar-value">{value}</span>
+        </div>
+      );
+    }
+
+    /* ── Submit tip modal ────────────────────────── */
+
+    function SubmitModal({ onClose, onSubmit }) {
+      const [subject, setSubject] = useState('');
+      const [body, setBody] = useState('');
+      const [sender, setSender] = useState('');
+
+      const handleSubmit = () => {
+        if (!subject.trim() || !body.trim()) return;
+        onSubmit({ subject, body_text: body, sender_name: sender || 'Anonymous' });
+        onClose();
+      };
+
+      return (
+        <div className="modal-overlay" onClick={onClose}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2>Submit a Tip Manually</h2>
+            <input placeholder="Subject / headline" value={subject} onChange={e => setSubject(e.target.value)} />
+            <input placeholder="Source name (optional)" value={sender} onChange={e => setSender(e.target.value)} />
+            <textarea placeholder="Tip details..." value={body} onChange={e => setBody(e.target.value)} />
+            <div className="btn-row">
+              <button className="btn btn-primary" onClick={handleSubmit}>Submit for Analysis</button>
+              <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ── Detail panel ────────────────────────────── */
+
+    function DetailPanel({ tip, onUpdate }) {
+      const [notes, setNotes] = useState(tip?.team_notes || '');
+      const [assignee, setAssignee] = useState(tip?.assigned_to || '');
+
+      useEffect(() => {
+        setNotes(tip?.team_notes || '');
+        setAssignee(tip?.assigned_to || '');
+      }, [tip?.id]);
+
+      if (!tip) return (
+        <div className="detail-panel">
+          <div className="empty-state">
+            <div className="icon">📋</div>
+            <p>Select a tip to view details</p>
+          </div>
+        </div>
+      );
+
+      const claims = tip.key_claims_json || [];
+      const questions = tip.follow_up_questions_json || [];
+      const coverage = tip.related_coverage_json || [];
+
+      const save = async (fields) => {
+        await fetch(`${API}/api/tips/${tip.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fields),
+        });
+        onUpdate();
+      };
+
+      return (
+        <div className="detail-panel">
+          <div>
+            <h2>{tip.subject}</h2>
+            <div className="tip-meta" style={{ marginTop: 8 }}>
+              <span>From: {tip.sender_name || tip.sender_email}</span>
+              <span>{timeAgo(tip.received_at)}</span>
+            </div>
+          </div>
+
+          <div className="detail-section">
+            <h3>AI Summary</h3>
+            <p>{tip.summary || 'Pending analysis...'}</p>
+          </div>
+
+          <div className="detail-section">
+            <h3>Newsworthiness Scores</h3>
+            <div className="score-bar-group">
+              <ScoreBar label="Timeliness" value={tip.score_timeliness || 0} />
+              <ScoreBar label="Impact" value={tip.score_impact || 0} />
+              <ScoreBar label="Novelty" value={tip.score_novelty || 0} />
+              <ScoreBar label="Credibility" value={tip.score_credibility || 0} />
+              <ScoreBar label="Public Interest" value={tip.score_public_interest || 0} />
+            </div>
+          </div>
+
+          {claims.length > 0 && (
+            <div className="detail-section">
+              <h3>Key Claims</h3>
+              <ul className="claim-list">
+                {claims.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {tip.research_notes && (
+            <div className="detail-section">
+              <h3>Research Notes</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>{tip.research_notes}</p>
+            </div>
+          )}
+
+          {questions.length > 0 && (
+            <div className="detail-section">
+              <h3>Follow-up Questions</h3>
+              <ol className="question-list">
+                {questions.map((q, i) => <li key={i}>{q}</li>)}
+              </ol>
+            </div>
+          )}
+
+          {tip.source_credibility && (
+            <div className="detail-section">
+              <h3>Source Credibility</h3>
+              <p style={{ fontSize: 13 }}>{tip.source_credibility}</p>
+            </div>
+          )}
+
+          <div className="detail-section">
+            <h3>Assign To</h3>
+            <input
+              className="assign-input"
+              placeholder="Reporter name..."
+              value={assignee}
+              onChange={e => setAssignee(e.target.value)}
+              onBlur={() => save({ assigned_to: assignee })}
+            />
+          </div>
+
+          <div className="detail-section">
+            <h3>Team Notes</h3>
+            <textarea
+              className="notes-textarea"
+              placeholder="Add notes for the team..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              onBlur={() => save({ team_notes: notes })}
+            />
+          </div>
+
+          <div className="btn-row">
+            <button className="btn btn-primary" onClick={() => save({ is_starred: !tip.is_starred })}>
+              {tip.is_starred ? '★ Unstar' : '☆ Star'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => save({ is_archived: true })}>
+              Archive
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    /* ── Main App ────────────────────────────────── */
+
+    function App() {
+      const [tips, setTips] = useState([]);
+      const [stats, setStats] = useState({});
+      const [selected, setSelected] = useState(null);
+      const [filters, setFilters] = useState({ priority: null, category: null, search: '' });
+      const [showSubmit, setShowSubmit] = useState(false);
+      const [connected, setConnected] = useState(false);
+      const wsRef = useRef(null);
+
+      // Fetch tips
+      const loadTips = useCallback(async () => {
+        const params = new URLSearchParams();
+        if (filters.priority) params.set('priority', filters.priority);
+        if (filters.category) params.set('category', filters.category);
+        if (filters.search) params.set('search', filters.search);
+        const data = await fetcher(`/api/tips?${params}`);
+        setTips(data.tips || []);
+      }, [filters]);
+
+      const loadStats = async () => {
+        const data = await fetcher('/api/stats');
+        setStats(data);
+      };
+
+      // WebSocket
+      useEffect(() => {
+        const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+        wsRef.current = ws;
+
+        ws.onopen = () => setConnected(true);
+        ws.onclose = () => {
+          setConnected(false);
+          setTimeout(() => window.location.reload(), 5000);
+        };
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'new_tip' || msg.type === 'tip_updated') {
+            loadTips();
+            loadStats();
+          }
+          if (msg.type === 'stats_update') {
+            setStats(msg.stats);
+          }
+        };
+
+        return () => ws.close();
+      }, []);
+
+      useEffect(() => { loadTips(); loadStats(); }, [loadTips]);
+
+      // Auto-refresh
+      useEffect(() => {
+        const interval = setInterval(() => { loadTips(); loadStats(); }, 30000);
+        return () => clearInterval(interval);
+      }, [loadTips]);
+
+      const submitManualTip = async (tip) => {
+        await fetch(`${API}/api/tips`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tip),
+        });
+        loadTips();
+        loadStats();
+      };
+
+      const selectedTip = tips.find(t => t.id === selected);
+
+      const priorities = ['critical', 'high', 'medium', 'low'];
+      const categories = ['politics','crime','business','health','environment','technology','investigative'];
+
+      return (
+        <div className="app">
+          {/* Header */}
+          <div className="header">
+            <h1><span>⚡</span> News Tip Triage</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <button className="btn btn-primary" onClick={() => setShowSubmit(true)}>
+                + Submit Tip
+              </button>
+              <div className="header-status">
+                <div className="status-dot" style={{ background: connected ? 'var(--success)' : 'var(--critical)' }} />
+                {connected ? 'Live' : 'Reconnecting...'}
+              </div>
+            </div>
+          </div>
+
+          <div className="main">
+            {/* Sidebar */}
+            <div className="sidebar">
+              <div>
+                <div className="stat-grid">
+                  <div className="stat-card">
+                    <div className="value">{stats.total_active || 0}</div>
+                    <div className="label">Active Tips</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="value" style={{ color: 'var(--critical)' }}>{stats.urgent_count || 0}</div>
+                    <div className="label">Urgent</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="value" style={{ color: 'var(--high)' }}>{stats.breaking_count || 0}</div>
+                    <div className="label">Breaking</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="value">{(stats.by_status || {}).analyzing || 0}</div>
+                    <div className="label">Analyzing</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="filter-group">
+                <label>Search</label>
+                <input
+                  className="search-input"
+                  placeholder="Search tips..."
+                  value={filters.search}
+                  onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+                />
+              </div>
+
+              <div className="filter-group">
+                <label>Priority</label>
+                <div className="filter-pills">
+                  {priorities.map(p => (
+                    <span
+                      key={p}
+                      className={`pill ${filters.priority === p ? 'active' : ''}`}
+                      onClick={() => setFilters(f => ({ ...f, priority: f.priority === p ? null : p }))}
+                    >
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="filter-group">
+                <label>Category</label>
+                <div className="filter-pills">
+                  {categories.map(c => (
+                    <span
+                      key={c}
+                      className={`pill ${filters.category === c ? 'active' : ''}`}
+                      onClick={() => setFilters(f => ({ ...f, category: f.category === c ? null : c }))}
+                    >
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="filter-group" style={{ marginTop: 'auto' }}>
+                <label>Category Breakdown</label>
+                {Object.entries(stats.by_category || {}).slice(0, 8).map(([cat, count]) => (
+                  <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', color: 'var(--text-dim)' }}>
+                    <span style={{ textTransform: 'capitalize' }}>{cat}</span>
+                    <span style={{ fontWeight: 600 }}>{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tip list */}
+            <div className="content">
+              {tips.length === 0 ? (
+                <div className="empty-state">
+                  <div className="icon">📨</div>
+                  <p>No tips yet. Send an email to the monitored inbox<br/>or submit one manually.</p>
+                </div>
+              ) : (
+                <div className="tip-list">
+                  {tips.map(tip => (
+                    <div
+                      key={tip.id}
+                      className={`tip-card ${tip.is_urgent ? 'urgent' : ''} ${tip.is_breaking ? 'breaking' : ''}`}
+                      onClick={() => setSelected(tip.id)}
+                      style={selected === tip.id ? { borderColor: 'var(--accent)', background: 'var(--surface-hover)' } : {}}
+                    >
+                      <div className={`tip-score ${scoreColor(tip.score_overall)}`}>
+                        {Math.round(tip.score_overall || 0)}
+                      </div>
+                      <div className="tip-body">
+                        <div className="tip-header">
+                          <span className="tip-subject">{tip.subject || '(no subject)'}</span>
+                          <div className="tip-badges">
+                            {tip.is_urgent ? <span className="badge urgent">Urgent</span> : null}
+                            {tip.is_breaking ? <span className="badge breaking">Breaking</span> : null}
+                            {tip.is_starred ? <span className="badge starred">★</span> : null}
+                          </div>
+                        </div>
+                        <div className="tip-summary">{tip.summary || 'Awaiting analysis...'}</div>
+                        <div className="tip-meta">
+                          <span>{tip.category ? tip.category.replace('_', ' ') : '—'}</span>
+                          <span>{tip.sender_name || tip.sender_email || 'Unknown'}</span>
+                          <span>{timeAgo(tip.received_at)}</span>
+                          {tip.assigned_to && <span style={{ color: 'var(--accent)' }}>→ {tip.assigned_to}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Detail panel */}
+            <DetailPanel
+              tip={selectedTip}
+              onUpdate={() => { loadTips(); loadStats(); }}
+            />
+          </div>
+
+          {showSubmit && <SubmitModal onClose={() => setShowSubmit(false)} onSubmit={submitManualTip} />}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
