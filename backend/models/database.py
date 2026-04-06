@@ -204,7 +204,10 @@ class TipDatabase:
         order_by: str = "score_overall DESC",
     ) -> list[dict]:
         """Query tips with filters, pagination, and sorting."""
-        conditions = ["is_archived = ?"]
+        conditions = [
+            "is_archived = ?",
+            "received_at >= datetime('now', '-48 hours')",
+        ]
         params: list = [int(is_archived)]
 
         if status:
@@ -248,39 +251,43 @@ class TipDatabase:
         return [dict(r) for r in rows]
 
     async def get_stats(self) -> dict:
-        """Get dashboard statistics."""
+        """Get dashboard statistics (scoped to last 48 hours)."""
         stats = {}
+        time_filter = "AND received_at >= datetime('now', '-48 hours')"
 
         cursor = await self._db.execute(
-            "SELECT COUNT(*) as total FROM tips WHERE is_archived = 0"
+            f"SELECT COUNT(*) as total FROM tips WHERE is_archived = 0 {time_filter}"
         )
         stats["total_active"] = (await cursor.fetchone())["total"]
 
         cursor = await self._db.execute(
-            "SELECT priority, COUNT(*) as count FROM tips "
-            "WHERE is_archived = 0 GROUP BY priority"
+            f"SELECT priority, COUNT(*) as count FROM tips "
+            f"WHERE is_archived = 0 {time_filter} GROUP BY priority"
         )
         stats["by_priority"] = {row["priority"]: row["count"] for row in await cursor.fetchall()}
 
         cursor = await self._db.execute(
-            "SELECT category, COUNT(*) as count FROM tips "
-            "WHERE is_archived = 0 AND category IS NOT NULL GROUP BY category "
-            "ORDER BY count DESC"
+            f"SELECT category, COUNT(*) as count FROM tips "
+            f"WHERE is_archived = 0 AND category IS NOT NULL {time_filter} "
+            f"GROUP BY category ORDER BY count DESC"
         )
         stats["by_category"] = {row["category"]: row["count"] for row in await cursor.fetchall()}
 
         cursor = await self._db.execute(
-            "SELECT status, COUNT(*) as count FROM tips GROUP BY status"
+            f"SELECT status, COUNT(*) as count FROM tips "
+            f"WHERE 1=1 {time_filter} GROUP BY status"
         )
         stats["by_status"] = {row["status"]: row["count"] for row in await cursor.fetchall()}
 
         cursor = await self._db.execute(
-            "SELECT COUNT(*) as count FROM tips WHERE is_urgent = 1 AND is_archived = 0"
+            f"SELECT COUNT(*) as count FROM tips "
+            f"WHERE is_urgent = 1 AND is_archived = 0 {time_filter}"
         )
         stats["urgent_count"] = (await cursor.fetchone())["count"]
 
         cursor = await self._db.execute(
-            "SELECT COUNT(*) as count FROM tips WHERE is_breaking = 1 AND is_archived = 0"
+            f"SELECT COUNT(*) as count FROM tips "
+            f"WHERE is_breaking = 1 AND is_archived = 0 {time_filter}"
         )
         stats["breaking_count"] = (await cursor.fetchone())["count"]
 
