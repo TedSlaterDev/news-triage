@@ -403,6 +403,10 @@
                 background: 'var(--bg)', padding: 12, borderRadius: 'var(--radius)',
                 border: '1px solid var(--border)', lineHeight: 1.6,
               }}>
+                <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <div><strong style={{ color: 'var(--text)' }}>Subject:</strong> {tip.subject}</div>
+                  <div><strong style={{ color: 'var(--text)' }}>From:</strong> {tip.sender_email}</div>
+                </div>
                 {tip.body_text}
               </div>
             </div>

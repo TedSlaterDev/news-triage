@@ -103,8 +103,18 @@ def parse_email(raw_bytes: bytes) -> dict:
     msg = email.message_from_bytes(raw_bytes, policy=email.policy.default)
 
     sender_name, sender_email = parseaddr(msg.get("From", ""))
+    sender_name = _decode_header_value(sender_name) if sender_name else ""
     subject = _decode_header_value(msg.get("Subject", "(no subject)"))
     message_id = msg.get("Message-ID", "")
+
+    # For Gateway Pundit emails, use the Reply-To address as the contact email
+    display_email = sender_email
+    if "gateway pundit" in sender_name.lower() or "gatewaypundit" in sender_email.lower():
+        reply_to = msg.get("Reply-To", "")
+        if reply_to:
+            _, reply_email = parseaddr(reply_to)
+            if reply_email:
+                display_email = reply_email
 
     # Parse date
     date_str = msg.get("Date", "")
@@ -119,8 +129,8 @@ def parse_email(raw_bytes: bytes) -> dict:
     return {
         "message_id": message_id,
         "subject": subject,
-        "sender_email": sender_email,
-        "sender_name": _decode_header_value(sender_name) if sender_name else "",
+        "sender_email": display_email,
+        "sender_name": sender_name,
         "received_at": received_at,
         "body_text": text_body,
         "body_html": html_body,
