@@ -394,6 +394,20 @@
             <p>{tip.summary || 'Pending analysis...'}</p>
           </div>
 
+          {tip.body_text && (
+            <div className="detail-section">
+              <h3>Original Email</h3>
+              <div style={{
+                fontSize: 13, color: 'var(--text-dim)', whiteSpace: 'pre-wrap',
+                maxHeight: 300, overflowY: 'auto',
+                background: 'var(--bg)', padding: 12, borderRadius: 'var(--radius)',
+                border: '1px solid var(--border)', lineHeight: 1.6,
+              }}>
+                {tip.body_text}
+              </div>
+            </div>
+          )}
+
           <div className="detail-section">
             <h3>Newsworthiness Scores</h3>
             <div className="score-bar-group">
