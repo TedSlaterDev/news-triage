@@ -206,7 +206,7 @@ class TipDatabase:
         """Query tips with filters, pagination, and sorting."""
         conditions = [
             "is_archived = ?",
-            "received_at >= datetime('now', '-48 hours')",
+            "received_at >= datetime('now', '-24 hours')",
         ]
         params: list = [int(is_archived)]
 
@@ -251,9 +251,9 @@ class TipDatabase:
         return [dict(r) for r in rows]
 
     async def get_stats(self) -> dict:
-        """Get dashboard statistics (scoped to last 48 hours)."""
+        """Get dashboard statistics (scoped to last 24 hours)."""
         stats = {}
-        time_filter = "AND received_at >= datetime('now', '-48 hours')"
+        time_filter = "AND received_at >= datetime('now', '-24 hours')"
 
         cursor = await self._db.execute(
             f"SELECT COUNT(*) as total FROM tips WHERE is_archived = 0 {time_filter}"
