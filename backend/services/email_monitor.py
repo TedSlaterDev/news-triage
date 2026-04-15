@@ -8,14 +8,65 @@ import email
 import email.policy
 import imaplib
 import logging
+import re
 from datetime import datetime
 from email.header import decode_header
 from email.utils import parseaddr, parsedate_to_datetime
+from html import unescape
+from html.parser import HTMLParser
 from typing import Optional, Callable, Awaitable
 
 from config.settings import IMAPConfig
 
 logger = logging.getLogger(__name__)
+
+
+class _HTMLTextExtractor(HTMLParser):
+    """Strips HTML tags and collects readable text."""
+
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+        self._skip = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style", "head"):
+            self._skip += 1
+        elif tag in ("p", "br", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6"):
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style", "head") and self._skip > 0:
+            self._skip -= 1
+        elif tag in ("p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6"):
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if self._skip == 0 and data.strip():
+            self.parts.append(data)
+
+    def get_text(self) -> str:
+        text = "".join(self.parts)
+        text = unescape(text)
+        # Collapse excessive whitespace
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
+
+
+def html_to_text(html: str) -> str:
+    """Convert HTML email body to readable plain text."""
+    if not html:
+        return ""
+    try:
+        parser = _HTMLTextExtractor()
+        parser.feed(html)
+        return parser.get_text()
+    except Exception:
+        # Fallback: crude tag stripping
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = unescape(text)
+        return re.sub(r"\s+", " ", text).strip()
 
 
 def _decode_header_value(value: str) -> str:
@@ -124,6 +175,9 @@ def parse_email(raw_bytes: bytes) -> dict:
         received_at = datetime.utcnow().isoformat()
 
     text_body, html_body = _extract_body(msg)
+    # Fall back to HTML-stripped text if no plain text part was present
+    if not text_body.strip() and html_body:
+        text_body = html_to_text(html_body)
     attachments = _extract_attachments(msg)
 
     return {
