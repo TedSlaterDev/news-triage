@@ -69,6 +69,19 @@ def html_to_text(html: str) -> str:
         return re.sub(r"\s+", " ", text).strip()
 
 
+def normalize_whitespace(text: str) -> str:
+    """Collapse extra blank lines — keep at most one blank line between paragraphs."""
+    if not text:
+        return ""
+    # Normalize line endings
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Strip trailing whitespace on each line
+    text = "\n".join(line.rstrip() for line in text.split("\n"))
+    # Collapse any run of 2+ blank lines (lines with only whitespace) down to one
+    text = re.sub(r"(\n[ \t]*){2,}\n", "\n\n", text)
+    return text.strip()
+
+
 def _decode_header_value(value: str) -> str:
     """Decode RFC 2047 encoded email headers."""
     if not value:
@@ -178,6 +191,8 @@ def parse_email(raw_bytes: bytes) -> dict:
     # Fall back to HTML-stripped text if no plain text part was present
     if not text_body.strip() and html_body:
         text_body = html_to_text(html_body)
+    # Collapse excessive blank lines for readable display
+    text_body = normalize_whitespace(text_body)
     attachments = _extract_attachments(msg)
 
     return {
